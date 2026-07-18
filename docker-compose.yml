@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Change this to a strong random value outside of local development.
+      SECRET_KEY: ${SECRET_KEY:-dev-only-insecure-secret-key-change-me}
+      DATABASE_URL: sqlite:////data/devboard.db
+      CORS_ORIGINS: http://localhost:5173,http://localhost
+    volumes:
+      - backend-data:/data
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend-data:
