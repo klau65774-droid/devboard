@@ -3,6 +3,7 @@ import { getToken } from "./api";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Board from "./pages/Board";
+import Dashboard from "./pages/Dashboard";
 
 // Redirects to /login when there is no stored JWT.
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -19,6 +20,14 @@ export default function App() {
         element={
           <RequireAuth>
             <Board />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <RequireAuth>
+            <Dashboard />
           </RequireAuth>
         }
       />

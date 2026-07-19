@@ -111,3 +111,39 @@ def test_invalid_status_rejected(client):
         "/tasks", json={"title": "X", "status": "nonsense"}, headers=headers
     )
     assert resp.status_code == 422
+
+
+def test_create_task_with_due_date(client):
+    headers = make_user(client)
+    resp = client.post(
+        "/tasks",
+        json={"title": "Dated task", "due_date": "2026-08-01T10:00:00"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["due_date"] == "2026-08-01T10:00:00"
+
+
+def test_create_task_without_due_date_defaults_to_null(client):
+    headers = make_user(client)
+    task = create_task(client, headers, title="No due date")
+    assert task["due_date"] is None
+
+
+def test_update_task_due_date(client):
+    headers = make_user(client)
+    task = create_task(client, headers, title="Reschedule me")
+    assert task["due_date"] is None
+
+    resp = client.patch(
+        f"/tasks/{task['id']}",
+        json={"due_date": "2026-09-15T00:00:00"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["due_date"] == "2026-09-15T00:00:00"
+
+    # The updated value is persisted and returned on subsequent reads.
+    got = client.get(f"/tasks/{task['id']}", headers=headers).json()
+    assert got["due_date"] == "2026-09-15T00:00:00"

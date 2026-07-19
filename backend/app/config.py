@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     # Comma-separated list of allowed CORS origins (frontend dev server by default)
     CORS_ORIGINS: str = "http://localhost:5173"
 
+    # AI task parsing (OpenAI-compatible chat completions API). When AI_API_KEY
+    # is empty, /tasks/ai-parse falls back to the built-in rule-based parser.
+    AI_API_KEY: str = ""
+    AI_BASE_URL: str = "https://api.deepseek.com/v1"
+    AI_MODEL: str = "deepseek-chat"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

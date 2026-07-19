@@ -14,12 +14,15 @@ A full-stack task management platform — FastAPI + SQLAlchemy backend, React + 
 - User registration & login with JWT access tokens
 - Passwords hashed with PBKDF2-SHA256 (passlib)
 - Task CRUD with statuses `todo` / `in_progress` / `done`
+- Optional task due dates, with overdue dates highlighted in red on board cards (unfinished tasks only)
 - Strict per-user isolation: users can only see and modify their own tasks
 - Pagination and status filtering on the task list endpoint
 - Three-column kanban board UI (React, no UI framework)
 - Drag & drop cards between columns (native HTML5 DnD, optimistic update with rollback; click-to-move buttons as fallback)
 - Landing page with hero and feature overview
+- Stats dashboard page (`/dashboard`) with hand-rolled SVG charts (no dependencies): completion-rate ring, per-status distribution, 7-day completion trend and overdue count
 - Interactive onboarding tour on the board (hand-rolled spotlight overlay, no dependencies)
+- AI natural-language task creation (`POST /tasks/ai-parse`): type one sentence (Chinese or English, e.g. "下周三前把简历改完") and get a structured task with title, description and due date — uses an OpenAI-compatible LLM when configured, with a built-in rule-based date parser as automatic fallback
 - Interactive API docs via Swagger UI
 - Pytest suite covering auth, CRUD, pagination and authorization boundaries
 - GitHub Actions CI: backend tests + frontend typecheck/build
@@ -115,6 +118,7 @@ Main endpoints:
 | `POST`   | `/auth/login`    | OAuth2 password login, returns JWT       |
 | `GET`    | `/tasks`         | List own tasks (`page`, `size`, `status`)|
 | `POST`   | `/tasks`         | Create a task                            |
+| `POST`   | `/tasks/ai-parse`| Parse a sentence into a task (AI or rule fallback) |
 | `GET`    | `/tasks/{id}`    | Get one of your tasks                    |
 | `PATCH`  | `/tasks/{id}`    | Update title/description/status          |
 | `DELETE` | `/tasks/{id}`    | Delete a task                            |
@@ -140,6 +144,19 @@ Backend settings are read from environment variables (see `backend/app/config.py
 | `DATABASE_URL`      | `sqlite:///./devboard.db`             | Any SQLAlchemy URL                      |
 | `CORS_ORIGINS`      | `http://localhost:5173`               | Comma-separated allowed origins         |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440`                      | JWT lifetime                            |
+| `AI_API_KEY`        | *(empty)*                             | API key for an OpenAI-compatible chat completions endpoint (e.g. DeepSeek); when unset, `/tasks/ai-parse` uses the built-in rule-based parser |
+| `AI_BASE_URL`       | `https://api.deepseek.com/v1`         | Base URL of the OpenAI-compatible API   |
+| `AI_MODEL`          | `deepseek-chat`                       | Model name sent to the API              |
+
+To enable real AI parsing, set `AI_API_KEY` (and optionally `AI_BASE_URL` /
+`AI_MODEL`) as environment variables before starting the backend. The backend
+sends the sentence to an OpenAI-compatible `chat/completions` endpoint and
+expects a JSON object `{"title", "description", "due_date"}` back; on any
+failure (timeout, bad response) or when no key is configured, it automatically
+falls back to the built-in Chinese/English rule-based date parser
+(`backend/app/ai_parser.py`), so the feature works offline out of the box.
+Never commit API keys — pass them via your shell or a local, git-ignored
+`.env` file.
 
 The frontend reads `VITE_API_URL` (default `http://localhost:8000`).
 
@@ -155,6 +172,7 @@ devboard/
 │   │   ├── models.py        # User, Task ORM models
 │   │   ├── schemas.py       # Pydantic request/response models
 │   │   ├── security.py      # JWT + password hashing
+│   │   ├── ai_parser.py     # Rule-based fallback parser (zh/en dates)
 │   │   ├── deps.py          # Dependency injection
 │   │   └── routers/         # auth, tasks
 │   ├── tests/               # pytest suite

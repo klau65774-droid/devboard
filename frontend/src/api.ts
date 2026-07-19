@@ -1,5 +1,5 @@
 // Thin fetch wrapper that automatically attaches the JWT access token.
-import type { Task, TaskPage, TaskStatus, Token } from "./types";
+import type { AIParseResult, Task, TaskPage, TaskStats, TaskStatus, Token } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -77,10 +77,18 @@ export function fetchTasks(status?: TaskStatus): Promise<TaskPage> {
   return request<TaskPage>(`/tasks${query}`);
 }
 
-export function createTask(title: string, description: string): Promise<Task> {
+export function createTask(
+  title: string,
+  description: string,
+  dueDate?: string
+): Promise<Task> {
   return request<Task>("/tasks", {
     method: "POST",
-    body: JSON.stringify({ title, description }),
+    body: JSON.stringify({
+      title,
+      description,
+      ...(dueDate ? { due_date: dueDate } : {}),
+    }),
   });
 }
 
@@ -93,4 +101,15 @@ export function updateTaskStatus(id: number, status: TaskStatus): Promise<Task> 
 
 export function deleteTask(id: number): Promise<void> {
   return request<void>(`/tasks/${id}`, { method: "DELETE" });
+}
+
+export function fetchStats(): Promise<TaskStats> {
+  return request<TaskStats>("/tasks/stats");
+}
+
+export function parseTaskWithAI(text: string): Promise<AIParseResult> {
+  return request<AIParseResult>("/tasks/ai-parse", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
 }

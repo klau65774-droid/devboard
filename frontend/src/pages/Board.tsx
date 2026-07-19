@@ -1,9 +1,10 @@
 import { DragEvent, FormEvent, useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   createTask,
   deleteTask,
   fetchTasks,
+  parseTaskWithAI,
   setToken,
   updateTaskStatus,
 } from "../api";
@@ -18,6 +19,32 @@ const COLUMNS: { key: TaskStatus; label: string }[] = [
 
 // localStorage flag so the onboarding tour only auto-plays once.
 const TOUR_KEY = "devboard_tour_seen";
+
+// Due date shown on a card, e.g. "Due Jul 22". Rendered in red when the
+// due day has fully passed and the task is not done yet (overdue highlight).
+function DueDate({ task }: { task: Task }) {
+  if (!task.due_date) return null;
+  // Parse the ISO date ("2026-07-22" or "2026-07-22T00:00:00") as a local
+  // calendar date to avoid UTC-offset day shifts.
+  const [y, m, d] = task.due_date.slice(0, 10).split("-").map(Number);
+  const due = new Date(y, m - 1, d, 23, 59, 59, 999);
+  const overdue = task.status !== "done" && due.getTime() < Date.now();
+  const label = due.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  return (
+    <p
+      style={{
+        margin: "4px 0",
+        fontSize: 12,
+        color: overdue ? "crimson" : "#6b7280",
+      }}
+    >
+      Due {label}
+    </p>
+  );
+}
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -47,7 +74,12 @@ export default function Board() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [error, setError] = useState("");
+  // AI quick-create input state.
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
   // Id of the card currently being dragged; used for the semi-transparent
   // dragging style.
   const [draggingId, setDraggingId] = useState<number | null>(null);
@@ -80,10 +112,40 @@ export default function Board() {
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
-    await createTask(title.trim(), description.trim());
+    await createTask(title.trim(), description.trim(), dueDate || undefined);
     setTitle("");
     setDescription("");
+    setDueDate("");
     await load();
+  }
+
+  // Parse one natural-language sentence via /tasks/ai-parse and create the
+  // task directly from the parsed result (reusing the normal create flow).
+  async function handleAiCreate(e: FormEvent) {
+    e.preventDefault();
+    const sentence = aiText.trim();
+    if (!sentence || aiLoading) return;
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const parsed = await parseTaskWithAI(sentence);
+      if (!parsed.title) {
+        throw new Error("Could not extract a task title");
+      }
+      // createTask expects a plain "YYYY-MM-DD" date string.
+      const parsedDue = parsed.due_date
+        ? parsed.due_date.slice(0, 10)
+        : undefined;
+      await createTask(parsed.title, parsed.description, parsedDue);
+      setAiText("");
+      await load();
+    } catch (err) {
+      setAiError(
+        err instanceof Error ? err.message : "Failed to create task with AI"
+      );
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   async function move(task: Task, status: TaskStatus) {
@@ -162,12 +224,44 @@ export default function Board() {
       >
         <h1 style={{ fontSize: 22 }}>DevBoard</h1>
         <div style={{ display: "flex", gap: 8 }}>
+          <Link to="/dashboard">
+            <button>Dashboard</button>
+          </Link>
           <button onClick={() => setShowTour(true)} title="Replay the tour">
             ? Tour
           </button>
           <button onClick={logout}>Log out</button>
         </div>
       </header>
+
+      <form
+        onSubmit={handleAiCreate}
+        style={{
+          display: "flex",
+          gap: 8,
+          margin: "16px 0 8px",
+          padding: 10,
+          background: "#eef2ff",
+          border: "1px solid #c7d2fe",
+          borderRadius: 8,
+        }}
+      >
+        <input
+          placeholder='✨ AI quick create — e.g. "下周三前把简历改完" or "finish report by Friday"'
+          value={aiText}
+          onChange={(e) => setAiText(e.target.value)}
+          disabled={aiLoading}
+          style={{ padding: 8, flex: 1, border: "none", background: "transparent", outline: "none" }}
+        />
+        <button
+          type="submit"
+          disabled={aiLoading || !aiText.trim()}
+          style={{ padding: "8px 16px" }}
+        >
+          {aiLoading ? "Creating…" : "✨ AI Create"}
+        </button>
+      </form>
+      {aiError && <p style={{ color: "crimson", margin: "4px 0" }}>{aiError}</p>}
 
       <form
         onSubmit={handleCreate}
@@ -185,6 +279,13 @@ export default function Board() {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           style={{ padding: 8, flex: 2 }}
+        />
+        <input
+          type="date"
+          title="Due date (optional)"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          style={{ padding: 8 }}
         />
         <button type="submit" style={{ padding: "8px 16px" }}>
           Add
@@ -245,6 +346,7 @@ export default function Board() {
                       {task.description}
                     </p>
                   )}
+                  <DueDate task={task} />
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {COLUMNS.filter((c) => c.key !== task.status).map((c) => (
                       <button

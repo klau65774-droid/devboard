@@ -32,6 +32,11 @@ class Task(Base):
     # One of: "todo", "in_progress", "done"
     status: Mapped[str] = mapped_column(String(20), default="todo", index=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    # Set when status becomes "done", cleared when it moves away from "done".
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
