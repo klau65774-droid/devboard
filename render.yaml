@@ -1,0 +1,48 @@
+# Render Blueprint — one-click deploy for DevBoard.
+# Dashboard → New → Blueprint → pick this repo → Apply.
+services:
+  # FastAPI backend (Docker)
+  - type: web
+    name: devboard-api
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    healthCheckPath: /docs
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        # Free tier has an ephemeral filesystem; the demo DB resets on redeploy.
+        value: sqlite:////tmp/devboard.db
+      - key: CORS_ORIGINS
+        fromService:
+          type: static
+          name: devboard-web
+          property: url
+      # Optional: enable the real LLM for /tasks/ai-parse (OpenAI-compatible).
+      # Without these, the built-in rule-based parser is used automatically.
+      # - key: AI_API_KEY
+      #   sync: false
+      # - key: AI_BASE_URL
+      #   value: https://api.deepseek.com/v1
+      # - key: AI_MODEL
+      #   value: deepseek-chat
+
+  # React frontend (static site)
+  - type: static
+    name: devboard-web
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: devboard-api
+          property: url
+    # SPA fallback: client-side routes (/board, /dashboard, ...) → index.html
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -103,6 +103,21 @@ docker compose up --build
 - Frontend: <http://localhost>
 - Backend: <http://localhost:8000>
 
+### Deploy to Render (one click)
+
+The repo ships a [Render Blueprint](render.yaml) that provisions two free-tier
+services: the FastAPI backend (Docker) and the React frontend (static site).
+
+1. Sign in at <https://render.com> with your GitHub account.
+2. Dashboard → **New → Blueprint** → select this repository → **Apply**.
+3. Render builds both services and wires up `VITE_API_URL` / `CORS_ORIGINS`
+   automatically. The frontend URL is shown as `devboard-web` once done.
+
+> Free tier notes: services sleep after ~15 min of inactivity (first load is
+> slow), and the SQLite demo database resets on each redeploy. To enable the
+> real LLM for `/tasks/ai-parse`, add `AI_API_KEY` (+ optional
+> `AI_BASE_URL` / `AI_MODEL`) in the backend service's Environment tab.
+
 ## API Documentation
 
 Once the backend is running, interactive docs are available at:
